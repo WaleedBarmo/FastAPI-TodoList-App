@@ -1,0 +1,138 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+
+:root {
+    --primary-color: #4CAF50;
+    --secondary-color: #f44336;
+    --background-color: #f0f2f5;
+    --card-background: #ffffff;
+    --text-color: #333333;
+    --border-color: #e0e0e0;
+    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    max-width: 500px;
+    background-color: var(--card-background);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 30px;
+}
+
+header {
+    margin-bottom: 25px;
+    text-align: center;
+}
+
+h1 {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    margin-bottom: 15px;
+}
+
+.task-input {
+    display: flex;
+    gap: 10px;
+}
+
+.task-input input {
+    flex-grow: 1;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+}
+
+.task-input input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.task-input button {
+    padding: 12px 20px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.task-input button:hover {
+    background-color: #45a049;
+}
+
+#task-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 20px;
+}
+
+#task-list li {
+    background-color: #f9f9f9;
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.1rem;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#task-list li:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+#task-list li span {
+    flex-grow: 1;
+}
+
+.edit-btn,
+.delete-btn {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    margin-left: 5px;
+    transition: background-color 0.3s ease;
+}
+
+.edit-btn {
+    background-color: #2196F3;
+    color: white;
+}
+
+.edit-btn:hover {
+    background-color: #1a7ab8;
+}
+
+.delete-btn {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+.delete-btn:hover {
+    background-color: #e53935;
+}

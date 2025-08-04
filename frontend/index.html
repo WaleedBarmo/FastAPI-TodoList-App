@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastAPI To-Do App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+
+        .container {
+            width: 400px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 36px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #555;
+            margin-bottom: 20px;
+        }
+
+        .auth-container, .tasks-container {
+            margin-bottom: 20px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        input[type="text"], input[type="password"] {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #task-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 20px 0 0 0;
+        }
+
+        li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        li:last-child {
+            border-bottom: none;
+        }
+
+        li span {
+            flex-grow: 1;
+            text-align: left;
+        }
+        .edit-btn, .delete-btn {
+            background-color: #f44336;
+            margin-left: 5px;
+        }
+
+        .edit-btn {
+            background-color: #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">To-Do</div>
+
+        <div class="auth-container">
+            <div id="auth-forms">
+                <h3>Signup</h3>
+                <form id="signup-form">
+                    <input type="text" id="signup-username" placeholder="Username" required>
+                    <input type="password" id="signup-password" placeholder="Password" required>
+                    <button type="submit">Signup</button>
+                </form>
+                <br>
+                <h3>Login</h3>
+                <form id="login-form">
+                    <input type="text" id="login-username" placeholder="Username" required>
+                    <input type="password" id="login-password" placeholder="Password" required>
+                    <button type="submit">Login</button>
+                </form>
+            </div>
+            <div id="logout-btn-container" class="hidden">
+                <p id="user-info"></p>
+                <button id="logout-btn">Logout</button>
+            </div>
+        </div>
+
+        <div id="tasks-container" class="hidden">
+            <h2>Tasks</h2>
+            <input type="text" id="task-text" placeholder="Add a new task">
+            <button id="add-task-btn">Add Task</button>
+            <ul id="task-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        // Selectors
+        const taskInput = document.getElementById("task-text");
+        const addTaskBtn = document.getElementById("add-task-btn");
+        const taskList = document.getElementById("task-list");
+        const authForms = document.getElementById("auth-forms");
+        const tasksContainer = document.getElementById("tasks-container");
+        const logoutBtnContainer = document.getElementById("logout-btn-container");
+        const userInfo = document.getElementById("user-info");
+        const signupForm = document.getElementById("signup-form");
+        const loginForm = document.getElementById("login-form");
+        const logoutBtn = document.getElementById("logout-btn");
+
+        const API_BASE_URL = "http://127.0.0.1:8000";
+
+        let userToken = localStorage.getItem("token");
+
+        // Function to check if a user is logged in and update the UI
+        function checkAuth() {
+            if (userToken) {
+                // If a token exists, the user is logged in
+                authForms.classList.add("hidden");
+                tasksContainer.classList.remove("hidden");
+                logoutBtnContainer.classList.remove("hidden");
+                
+                // Decode the JWT token to get the username
+                try {
+                    const payload = JSON.parse(atob(userToken.split('.')[1]));
+                    userInfo.textContent = `Logged in as: ${payload.sub}`;
+                } catch (e) {
+                    // Handle invalid token by logging out
+                    logout();
+                    return;
+                }
+                
+                fetchTasks();
+            } else {
+                // If no token exists, show login forms
+                authForms.classList.remove("hidden");
+                tasksContainer.classList.add("hidden");
+                logoutBtnContainer.classList.add("hidden");
+            }
+        }
+
+        // Function to fetch tasks from the API
+        async function fetchTasks() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks`, {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${userToken}`
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error("Failed to fetch tasks. Please log in.");
+                }
+                const tasks = await response.json();
+                taskList.innerHTML = "";
+                tasks.forEach(task => {
+                    const li = document.createElement("li");
+                    li.innerHTML = `
+                        <span>${task.text}</span>
+                        <div>
+                            <button class="edit-btn" data-id="${task.id}" data-text="${task.text}">Edit</button>
+                            <button class="delete-btn" data-id="${task.id}">X</button>
+                        </div>
+                    `;
+                    taskList.appendChild(li);
+                });
+
+                document.querySelectorAll(".delete-btn").forEach(button => {
+                    button.addEventListener("click", async (event) => {
+                        const taskId = event.target.dataset.id;
+                        await deleteTask(taskId);
+                    });
+                });
+                
+                document.querySelectorAll(".edit-btn").forEach(button => {
+                    button.addEventListener("click", async (event) => {
+                        const taskId = event.target.dataset.id;
+                        const taskText = event.target.dataset.text;
+                        const newText = prompt("Edit your task:", taskText);
+                        if (newText !== null && newText.trim() !== "") {
+                            await updateTask(taskId, newText);
+                        }
+                    });
+                });
+            } catch (error) {
+                console.error("Error fetching tasks:", error);
+            }
+        }
+
+        // Function to add a new task
+        async function addTask() {
+            const taskText = taskInput.value.trim();
+            if (taskText !== "") {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/tasks`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${userToken}`
+                        },
+                        body: JSON.stringify({ text: taskText }),
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || "Failed to add task");
+                    }
+                    fetchTasks();
+                    taskInput.value = "";
+                } catch (error) {
+                    console.error("Error adding task:", error);
+                }
+            }
+        }
+
+        // Function to delete a task
+        async function deleteTask(taskId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+                    method: "DELETE",
+                    headers: {
+                        "Authorization": `Bearer ${userToken}`
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error("Failed to delete task");
+                }
+                fetchTasks();
+            } catch (error) {
+                console.error("Error deleting task:", error);
+            }
+        }
+        
+        // Function to update a task
+        async function updateTask(taskId, newText) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${userToken}`
+                    },
+                    body: JSON.stringify({
+                        id: taskId,
+                        text: newText,
+                        is_completed: false,
+                    }),
+                });
+                if (!response.ok) {
+                    throw new Error("Failed to update task");
+                }
+                fetchTasks();
+            } catch (error) {
+                console.error("Error updating task:", error);
+            }
+        }
+
+        // Function to handle user signup
+        async function signup(username, password) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/signup`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, password })
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || "Failed to sign up");
+                }
+                alert("Signup successful! Please log in.");
+            } catch (error) {
+                console.error("Signup error:", error);
+                alert("Signup failed: " + error.message);
+            }
+        }
+
+        // Function to handle user login
+        async function login(username, password) {
+            const formData = new URLSearchParams();
+            formData.append("grant_type", "password");
+            formData.append("username", username);
+            formData.append("password", password);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: formData.toString()
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || "Login failed");
+                }
+                const data = await response.json();
+                userToken = data.access_token;
+                localStorage.setItem("token", userToken);
+                checkAuth();
+            } catch (error) {
+                console.error("Login error:", error);
+                alert("Login failed: " + error.message);
+            }
+        }
+        
+        // Function to handle user logout
+        function logout() {
+            localStorage.removeItem("token");
+            userToken = null;
+            checkAuth();
+            taskList.innerHTML = "";
+        }
+
+        // Event listeners for forms and buttons
+        signupForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const username = document.getElementById("signup-username").value;
+            const password = document.getElementById("signup-password").value;
+            signup(username, password);
+        });
+
+        loginForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const username = document.getElementById("login-username").value;
+            const password = document.getElementById("login-password").value;
+            login(username, password);
+        });
+
+        logoutBtn.addEventListener("click", logout);
+        addTaskBtn.addEventListener("click", addTask);
+
+        // Initial check for authentication status
+        checkAuth();
+    </script>
+</body>
+</html>

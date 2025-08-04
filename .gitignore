@@ -1,0 +1,11 @@
+# Virtual Environment
+venv/
+.venv/
+
+# Database Files
+*.db
+*.sqlite3
+
+# Other files to ignore
+__pycache__/
+.DS_Store
