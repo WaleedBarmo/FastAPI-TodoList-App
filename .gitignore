@@ -9,3 +9,4 @@ venv/
 # Other files to ignore
 __pycache__/
 .DS_Store
+.env

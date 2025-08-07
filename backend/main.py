@@ -12,11 +12,9 @@ from datetime import datetime, timedelta
 
 app = FastAPI()
 
-origins = ["*"]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,7 +38,7 @@ class User(BaseModel):
 class UserInDB(User):
     hashed_password: str
 
-    # Password Hashing
+# Password Hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_password_hash(password):
@@ -139,5 +137,3 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
     return {"access_token": encoded_jwt, "token_type": "bearer"}
-
-
