@@ -201,9 +201,9 @@
                 tasks.forEach(task => {
                     const li = document.createElement("li");
                     li.innerHTML = `
-                        <span>${task.text}</span>
+                        <span>${task.title}</span>
                         <div>
-                            <button class="edit-btn" data-id="${task.id}" data-text="${task.text}">Edit</button>
+                            <button class="edit-btn" data-id="${task.id}" data-text="${task.title}">Edit</button>
                             <button class="delete-btn" data-id="${task.id}">X</button>
                         </div>
                     `;
@@ -243,7 +243,7 @@
                             "Content-Type": "application/json",
                             "Authorization": `Bearer ${userToken}`
                         },
-                        body: JSON.stringify({ text: taskText }),
+                        body: JSON.stringify({ title: taskText }),
                     });
                     if (!response.ok) {
                         const errorData = await response.json();
@@ -286,7 +286,7 @@
                     },
                     body: JSON.stringify({
                         id: taskId,
-                        text: newText,
+                        title: newText,
                         is_completed: false,
                     }),
                 });

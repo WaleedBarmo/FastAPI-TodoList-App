@@ -1,14 +1,74 @@
-from fastapi import FastAPI, HTTPException,Depends
+import os
+from typing import List, Optional
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List
-from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import dotenv_values
-from bson import ObjectId
+from sqlalchemy import create_engine, Column, Integer, String, Boolean
+from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
 from passlib.context import CryptContext
-from fastapi.security import OAuth2PasswordRequestForm,OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+
+# Load environment variables
+load_dotenv()
+SECRET_KEY = os.getenv("SECRET_KEY")
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY not found in .env file")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL not found in .env file")
+
+# SQLAlchemy setup
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# Database models
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+
+class Todo(Base):
+    __tablename__ = "todos"
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer)
+    title = Column(String)  # تم تعديل هذا
+    is_completed = Column(Boolean, default=False)
+
+# Pydantic models
+class Task(BaseModel):
+    id: int
+    title: str # تم تعديل هذا
+    is_completed: bool = False
+    
+    class Config:
+        from_attributes = True
+
+class TaskCreate(BaseModel):
+    title: str # تم تعديل هذا
+
+# Pydantic models for authentication
+class Message(BaseModel):
+    message: str
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+# JWT Configuration
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+oauth2_scheme = OAuth2PasswordRequestForm
 
 app = FastAPI()
 
@@ -20,120 +80,94 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class Task(BaseModel):
-    id: str
-    text: str
-    is_completed: bool = False
-
-class TaskCreate(BaseModel):
-    text: str
-
-class Message(BaseModel):
-    message: str
-
-class User(BaseModel):
-    username: str
-    password: str
-
-class UserInDB(User):
-    hashed_password: str
-
 # Password Hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 def get_password_hash(password):
     return pwd_context.hash(password)
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
-config = dotenv_values(".env")
-client = AsyncIOMotorClient(config["MONGO_URI"])
-db = client.todo_database
-tasks_collection = db.tasks
-users_collection = db.users
-# JWT Configuration
-SECRET_KEY = "your-secret-key"  
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+# JWT helpers
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_current_user(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
             raise HTTPException(status_code=401, detail="Could not validate credentials")
-        user = await users_collection.find_one({"username": username})
     except JWTError:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
-    if user is None:
-        raise HTTPException(status_code=401, detail="Could not validate credentials")
-    return user
+    return username
 
+# Dependency to get DB session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-def task_helper(task) -> dict:
-    return {
-        "id": str(task["_id"]),
-        "text": task.get("text", ""),
-        "is_completed": task.get("is_completed", False),
-    }
-
+# API Endpoints
 @app.get("/tasks", response_model=List[Task])
-async def get_tasks(current_user: dict = Depends(get_current_user)):
-    tasks = []
-    async for task in tasks_collection.find():
-        tasks.append(task_helper(task))
+def get_tasks(db: Session = Depends(get_db)):
+    tasks = db.query(Todo).all()
     return tasks
 
 @app.post("/tasks", response_model=Task)
-async def add_task(task_create: TaskCreate, current_user: dict = Depends(get_current_user)):
-    task_data = {"text": task_create.text, "is_completed": False}
-    new_task = await tasks_collection.insert_one(task_data)
-    created_task = await tasks_collection.find_one({"_id": new_task.inserted_id})
-    return task_helper(created_task)
+def add_task(task_create: TaskCreate, db: Session = Depends(get_db)):
+    new_task = Todo(title=task_create.title)
+    db.add(new_task)
+    db.commit()
+    db.refresh(new_task)
+    return new_task
 
 @app.put("/tasks/{task_id}", response_model=Task)
-async def update_task(task_id: str, updated_task: Task, current_user: dict = Depends(get_current_user)):
-    task_update = await tasks_collection.update_one(
-        {"_id": ObjectId(task_id)},
-        {"$set": updated_task.model_dump(by_alias=True, exclude_unset=True)}
-    )
-    if task_update.modified_count == 1:
-        updated_document = await tasks_collection.find_one({"_id": ObjectId(task_id)})
-        return task_helper(updated_document)
-    raise HTTPException(status_code=404, detail="Task not found")
+def update_task(task_id: int, updated_task: Task, db: Session = Depends(get_db)):
+    task = db.query(Todo).filter(Todo.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    task.title = updated_task.title
+    task.is_completed = updated_task.is_completed
+    db.commit()
+    db.refresh(task)
+    return task
 
 @app.delete("/tasks/{task_id}", response_model=Message)
-async def delete_task(task_id: str, current_user: dict = Depends(get_current_user)):
-    delete_result = await tasks_collection.delete_one({"_id": ObjectId(task_id)})
-    if delete_result.deleted_count == 1:
-        return {"message": "Task deleted successfully"}
-    raise HTTPException(status_code=404, detail="Task not found")
+def delete_task(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(Todo).filter(Todo.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    db.delete(task)
+    db.commit()
+    return {"message": "Task deleted successfully"}
 
-@app.post("/signup", response_model=User)
-async def signup(user: User):
-    existing_user = await users_collection.find_one({"username": user.username})
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username already exists")
-
+@app.post("/signup")
+def signup(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.username == user.username).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
     hashed_password = get_password_hash(user.password)
-    new_user = await users_collection.insert_one({"username": user.username, "hashed_password": hashed_password})
-    created_user = await users_collection.find_one({"_id": new_user.inserted_id})
-    return {"username": created_user["username"], "password": created_user["hashed_password"]}
+    new_user = User(username=user.username, hashed_password=hashed_password)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return {"message": "User created successfully"}
 
 @app.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = await users_collection.find_one({"username": form_data.username})
-    if not user:
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.username == form_data.username).first()
+    if not db_user or not verify_password(form_data.password, db_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Invalid username or password")
 
-    if not verify_password(form_data.password, user["hashed_password"]):
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
-
-    # إنشاء الرمز (Access Token)
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode = {"sub": user["username"]}
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-    return {"access_token": encoded_jwt, "token_type": "bearer"}
+    access_token = create_access_token(data={"sub": db_user.username})
+    return {"access_token": access_token, "token_type": "bearer"}
