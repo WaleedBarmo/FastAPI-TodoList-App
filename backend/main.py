@@ -1,14 +1,13 @@
 import os
 from typing import List, Optional
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Column, Integer, String, Boolean
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy.orm import sessionmaker, declarative_base, Session, relationship
+from pydantic import BaseModel
 from passlib.context import CryptContext
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer # تم إضافة هذا
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 
@@ -33,25 +32,34 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
+    tasks = relationship("Task", back_populates="owner")
 
-class Todo(Base):
-    __tablename__ = "todos"
+class Task(Base):
+    __tablename__ = "tasks"
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer)
-    title = Column(String)  # تم تعديل هذا
-    is_completed = Column(Boolean, default=False)
+    title = Column(String, index=True)
+    status = Column(String, default="active")
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner = relationship("User", back_populates="tasks")
 
 # Pydantic models
-class Task(BaseModel):
-    id: int
-    title: str # تم تعديل هذا
-    is_completed: bool = False
-    
-    class Config:
-        from_attributes = True
+class TaskBase(BaseModel):
+    title: str
+    status: str
 
 class TaskCreate(BaseModel):
-    title: str # تم تعديل هذا
+    title: str
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    status: Optional[str] = None
+
+class TaskInDB(TaskBase):
+    id: int
+    owner_id: int
+    
+    class Config:
+        orm_mode = True
 
 # Pydantic models for authentication
 class Message(BaseModel):
@@ -68,7 +76,10 @@ class UserLogin(BaseModel):
 # JWT Configuration
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
-oauth2_scheme = OAuth2PasswordRequestForm
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# تم استخدام OAuth2PasswordBearer بدلاً من OAuth2PasswordRequestForm
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login") 
 
 app = FastAPI()
 
@@ -81,7 +92,6 @@ app.add_middleware(
 )
 
 # Password Hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def get_password_hash(password):
     return pwd_context.hash(password)
 
@@ -96,16 +106,6 @@ def create_access_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def get_current_user(token: str):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise HTTPException(status_code=401, detail="Could not validate credentials")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Could not validate credentials")
-    return username
-
 # Dependency to get DB session
 def get_db():
     db = SessionLocal()
@@ -114,47 +114,65 @@ def get_db():
     finally:
         db.close()
 
+# Dependency to get current user
+# تم تعديل ترتيب الدالة لكي يتم تعريفها بعد get_db
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
+    user = db.query(User).filter(User.username == username).first()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
+    return user
+
 # API Endpoints
-@app.get("/tasks", response_model=List[Task])
-def get_tasks(db: Session = Depends(get_db)):
-    tasks = db.query(Todo).all()
+@app.get("/tasks", response_model=List[TaskInDB])
+def get_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    tasks = db.query(Task).filter(Task.owner_id == current_user.id).all()
     return tasks
 
-@app.post("/tasks", response_model=Task)
-def add_task(task_create: TaskCreate, db: Session = Depends(get_db)):
-    new_task = Todo(title=task_create.title)
+@app.post("/tasks", response_model=TaskInDB, status_code=status.HTTP_201_CREATED)
+def add_task(task_create: TaskCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    new_task = Task(title=task_create.title, owner_id=current_user.id, status="active")
     db.add(new_task)
     db.commit()
     db.refresh(new_task)
     return new_task
 
-@app.put("/tasks/{task_id}", response_model=Task)
-def update_task(task_id: int, updated_task: Task, db: Session = Depends(get_db)):
-    task = db.query(Todo).filter(Todo.id == task_id).first()
+@app.put("/tasks/{task_id}", response_model=TaskInDB)
+def update_task(task_id: int, updated_task: TaskUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    task = db.query(Task).filter(Task.id == task_id, Task.owner_id == current_user.id).first()
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     
-    task.title = updated_task.title
-    task.is_completed = updated_task.is_completed
+    if updated_task.title is not None:
+        task.title = updated_task.title
+    if updated_task.status is not None:
+        task.status = updated_task.status
+    
     db.commit()
     db.refresh(task)
     return task
 
-@app.delete("/tasks/{task_id}", response_model=Message)
-def delete_task(task_id: int, db: Session = Depends(get_db)):
-    task = db.query(Todo).filter(Todo.id == task_id).first()
+@app.delete("/tasks/{task_id}", status_code=status.HTTP_200_OK)
+def delete_task(task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    task = db.query(Task).filter(Task.id == task_id, Task.owner_id == current_user.id).first()
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     
     db.delete(task)
     db.commit()
     return {"message": "Task deleted successfully"}
 
-@app.post("/signup")
+@app.post("/signup", response_model=Message, status_code=status.HTTP_201_CREATED)
 def signup(user: UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.username == user.username).first()
     if db_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
     
     hashed_password = get_password_hash(user.password)
     new_user = User(username=user.username, hashed_password=hashed_password)
@@ -163,11 +181,16 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return {"message": "User created successfully"}
 
-@app.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@app.post("/login", status_code=status.HTTP_200_OK)
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.username == form_data.username).first()
     if not db_user or not verify_password(form_data.password, db_user.hashed_password):
-        raise HTTPException(status_code=400, detail="Invalid username or password")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
 
     access_token = create_access_token(data={"sub": db_user.username})
     return {"access_token": access_token, "token_type": "bearer"}
+
+# Create database tables
+@app.on_event("startup")
+def startup_event():
+    Base.metadata.create_all(bind=engine)

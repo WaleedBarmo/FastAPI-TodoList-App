@@ -10,16 +10,26 @@
             background-color: #f4f4f4;
             display: flex;
             justify-content: center;
-            align-items: center;
-            height: 100vh;
+            align-items: flex-start;
+            min-height: 100vh;
             margin: 0;
+            padding: 20px;
             color: #333;
+            box-sizing: border-box;
         }
 
-        .container {
-            width: 400px;
-            padding: 20px;
+        .main-container {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .header {
+            width: 100%;
             background-color: #fff;
+            padding: 20px;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             text-align: center;
@@ -29,15 +39,10 @@
             font-size: 36px;
             font-weight: bold;
             color: #4CAF50;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
 
-        h1 {
-            color: #555;
-            margin-bottom: 20px;
-        }
-
-        .auth-container, .tasks-container {
+        .auth-container, .tasks-control {
             margin-bottom: 20px;
         }
 
@@ -74,209 +79,341 @@
             background-color: #45a049;
         }
 
-        #task-list {
+        .tasks-board {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .task-list-column {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+        }
+
+        .task-list-column h2 {
+            margin-top: 0;
+            text-align: center;
+        }
+        
+        .task-list {
             list-style-type: none;
             padding: 0;
-            margin: 20px 0 0 0;
+            margin: 0;
         }
 
         li {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 6px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            border-bottom: 1px solid #eee;
+            flex-direction: column;
+            gap: 10px;
+            background-color: #f9f9f9;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            position: relative;
         }
 
-        li:last-child {
-            border-bottom: none;
-        }
-
-        li span {
+        /* --- تأثير الوميض على النص فقط (أقوى) --- */
+        .task-content {
+            font-size: 16px;
+            font-weight: bold;
+            color: #555;
             flex-grow: 1;
-            text-align: left;
+            transition: all 0.3s ease-in-out;
         }
-        .edit-btn, .delete-btn {
-            background-color: #f44336;
-            margin-left: 5px;
+        
+        .active-pulse { animation: pulse-text-blue 1.2s infinite; }
+        .in-progress-pulse { animation: pulse-text-yellow 1.2s infinite; }
+        .approved-pulse { animation: pulse-text-green 1.2s infinite; }
+        .rejected-pulse { animation: pulse-text-red 1.2s infinite; }
+        
+        @keyframes pulse-text-blue {
+            0% { 
+                color: #2196F3;
+                text-shadow: 0 0 10px rgba(33, 150, 243, 0.8);
+            }
+            50% { 
+                color: #0d47a1;
+                text-shadow: 0 0 20px rgba(33, 150, 243, 1);
+            }
+            100% { 
+                color: #2196F3;
+                text-shadow: 0 0 10px rgba(33, 150, 243, 0.8);
+            }
+        }
+        @keyframes pulse-text-yellow {
+            0% { 
+                color: #ffc107;
+                text-shadow: 0 0 10px rgba(255, 193, 7, 0.8);
+            }
+            50% { 
+                color: #ff8f00;
+                text-shadow: 0 0 20px rgba(255, 193, 7, 1);
+            }
+            100% { 
+                color: #ffc107;
+                text-shadow: 0 0 10px rgba(255, 193, 7, 0.8);
+            }
+        }
+        @keyframes pulse-text-green {
+            0% { 
+                color: #4CAF50;
+                text-shadow: 0 0 10px rgba(76, 175, 80, 0.8);
+            }
+            50% { 
+                color: #1b5e20;
+                text-shadow: 0 0 20px rgba(76, 175, 80, 1);
+            }
+            100% { 
+                color: #4CAF50;
+                text-shadow: 0 0 10px rgba(76, 175, 80, 0.8);
+            }
+        }
+        @keyframes pulse-text-red {
+            0% { 
+                color: #f44336;
+                text-shadow: 0 0 10px rgba(244, 67, 54, 0.8);
+            }
+            50% { 
+                color: #b71c1c;
+                text-shadow: 0 0 20px rgba(244, 67, 54, 1);
+            }
+            100% { 
+                color: #f44336;
+                text-shadow: 0 0 10px rgba(244, 67, 54, 0.8);
+            }
         }
 
-        .edit-btn {
+        .task-actions {
+            display: flex;
+            gap: 5px;
+            justify-content: flex-end;
+        }
+
+        .task-actions button {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        .btn-reject {
+            background-color: #f44336;
+        }
+        .btn-in-progress {
+            background-color: #ffc107;
+        }
+        .btn-approve {
+            background-color: #4CAF50;
+        }
+        .btn-delete {
+            background-color: #607d8b;
+        }
+        .btn-reactivate {
             background-color: #2196F3;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo">To-Do</div>
-
-        <div class="auth-container">
-            <div id="auth-forms">
-                <h3>Signup</h3>
-                <form id="signup-form">
-                    <input type="text" id="signup-username" placeholder="Username" required>
-                    <input type="password" id="signup-password" placeholder="Password" required>
-                    <button type="submit">Signup</button>
-                </form>
-                <br>
-                <h3>Login</h3>
-                <form id="login-form">
-                    <input type="text" id="login-username" placeholder="Username" required>
-                    <input type="password" id="login-password" placeholder="Password" required>
-                    <button type="submit">Login</button>
-                </form>
-            </div>
-            <div id="logout-btn-container" class="hidden">
-                <p id="user-info"></p>
-                <button id="logout-btn">Logout</button>
+    <div class="main-container">
+        <div class="header">
+            <div class="logo">To-Do App</div>
+            <div class="auth-container">
+                <div id="auth-forms">
+                    <h3>Signup</h3>
+                    <form id="signup-form">
+                        <input type="text" id="signup-username" placeholder="Username" required>
+                        <input type="password" id="signup-password" placeholder="Password" required>
+                        <button type="submit">Signup</button>
+                    </form>
+                    <br>
+                    <h3>Login</h3>
+                    <form id="login-form">
+                        <input type="text" id="login-username" placeholder="Username" required>
+                        <input type="password" id="login-password" placeholder="Password" required>
+                        <button type="submit">Login</button>
+                    </form>
+                </div>
+                <div id="logout-btn-container" class="hidden">
+                    <p id="user-info"></p>
+                    <button id="logout-btn">Logout</button>
+                </div>
             </div>
         </div>
 
-        <div id="tasks-container" class="hidden">
-            <h2>Tasks</h2>
-            <input type="text" id="task-text" placeholder="Add a new task">
-            <button id="add-task-btn">Add Task</button>
-            <ul id="task-list"></ul>
+        <div id="tasks-control" class="hidden">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                <input type="text" id="task-text" placeholder="Add a new task" style="flex-grow: 1;">
+                <button id="add-task-btn">Add Task</button>
+                <span id="add-task-status" class="task-status-indicator"></span>
+            </div>
+            
+            <div class="tasks-board">
+                <div class="task-list-column">
+                    <h2>Active</h2>
+                    <ul id="active-tasks-list" class="task-list"></ul>
+                </div>
+                <div class="task-list-column">
+                    <h2>In Progress</h2>
+                    <ul id="in-progress-tasks-list" class="task-list"></ul>
+                </div>
+                <div class="task-list-column">
+                    <h2>Approved</h2>
+                    <ul id="approved-tasks-list" class="task-list"></ul>
+                </div>
+                <div class="task-list-column">
+                    <h2>Rejected</h2>
+                    <ul id="rejected-tasks-list" class="task-list"></ul>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        // Selectors
         const taskInput = document.getElementById("task-text");
         const addTaskBtn = document.getElementById("add-task-btn");
-        const taskList = document.getElementById("task-list");
         const authForms = document.getElementById("auth-forms");
-        const tasksContainer = document.getElementById("tasks-container");
+        const tasksControl = document.getElementById("tasks-control");
         const logoutBtnContainer = document.getElementById("logout-btn-container");
         const userInfo = document.getElementById("user-info");
         const signupForm = document.getElementById("signup-form");
         const loginForm = document.getElementById("login-form");
         const logoutBtn = document.getElementById("logout-btn");
+        const activeTasksList = document.getElementById("active-tasks-list");
+        const inProgressTasksList = document.getElementById("in-progress-tasks-list");
+        const approvedTasksList = document.getElementById("approved-tasks-list");
+        const rejectedTasksList = document.getElementById("rejected-tasks-list");
 
         const API_BASE_URL = "http://127.0.0.1:8000";
-
         let userToken = localStorage.getItem("token");
 
-        // Function to check if a user is logged in and update the UI
         function checkAuth() {
             if (userToken) {
-                // If a token exists, the user is logged in
                 authForms.classList.add("hidden");
-                tasksContainer.classList.remove("hidden");
+                tasksControl.classList.remove("hidden");
                 logoutBtnContainer.classList.remove("hidden");
-                
-                // Decode the JWT token to get the username
                 try {
                     const payload = JSON.parse(atob(userToken.split('.')[1]));
                     userInfo.textContent = `Logged in as: ${payload.sub}`;
                 } catch (e) {
-                    // Handle invalid token by logging out
                     logout();
                     return;
                 }
-                
                 fetchTasks();
             } else {
-                // If no token exists, show login forms
                 authForms.classList.remove("hidden");
-                tasksContainer.classList.add("hidden");
+                tasksControl.classList.add("hidden");
                 logoutBtnContainer.classList.add("hidden");
             }
         }
 
-        // Function to fetch tasks from the API
         async function fetchTasks() {
+            if (!userToken) return;
             try {
                 const response = await fetch(`${API_BASE_URL}/tasks`, {
                     method: "GET",
-                    headers: {
-                        "Authorization": `Bearer ${userToken}`
-                    }
+                    headers: { "Authorization": `Bearer ${userToken}` }
                 });
                 if (!response.ok) {
                     throw new Error("Failed to fetch tasks. Please log in.");
                 }
                 const tasks = await response.json();
-                taskList.innerHTML = "";
+                activeTasksList.innerHTML = "";
+                inProgressTasksList.innerHTML = "";
+                approvedTasksList.innerHTML = "";
+                rejectedTasksList.innerHTML = "";
+
                 tasks.forEach(task => {
                     const li = document.createElement("li");
+                    const statusClass = getStatusClass(task.status);
+                    
+                    const taskTitle = task.title ? task.title : "[No Title]"; 
+
                     li.innerHTML = `
-                        <span>${task.title}</span>
-                        <div>
-                            <button class="edit-btn" data-id="${task.id}" data-text="${task.title}">Edit</button>
-                            <button class="delete-btn" data-id="${task.id}">X</button>
+                        <div class="task-content ${statusClass}">${taskTitle}</div>
+                        <div class="task-actions">
+                            ${getTaskActions(task)}
                         </div>
                     `;
-                    taskList.appendChild(li);
+                    
+                    if (task.status === "active") {
+                        activeTasksList.appendChild(li);
+                    } else if (task.status === "in-progress") {
+                        inProgressTasksList.appendChild(li);
+                    } else if (task.status === "approved") {
+                        approvedTasksList.appendChild(li);
+                    } else if (task.status === "rejected") {
+                        rejectedTasksList.appendChild(li);
+                    }
                 });
 
-                document.querySelectorAll(".delete-btn").forEach(button => {
-                    button.addEventListener("click", async (event) => {
-                        const taskId = event.target.dataset.id;
-                        await deleteTask(taskId);
-                    });
-                });
-                
-                document.querySelectorAll(".edit-btn").forEach(button => {
-                    button.addEventListener("click", async (event) => {
-                        const taskId = event.target.dataset.id;
-                        const taskText = event.target.dataset.text;
-                        const newText = prompt("Edit your task:", taskText);
-                        if (newText !== null && newText.trim() !== "") {
-                            await updateTask(taskId, newText);
-                        }
-                    });
+                document.querySelectorAll(".task-actions button").forEach(button => {
+                    button.addEventListener("click", handleTaskAction);
                 });
             } catch (error) {
                 console.error("Error fetching tasks:", error);
             }
         }
-
-        // Function to add a new task
-        async function addTask() {
-            const taskText = taskInput.value.trim();
-            if (taskText !== "") {
-                try {
-                    const response = await fetch(`${API_BASE_URL}/tasks`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${userToken}`
-                        },
-                        body: JSON.stringify({ title: taskText }),
-                    });
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.detail || "Failed to add task");
-                    }
-                    fetchTasks();
-                    taskInput.value = "";
-                } catch (error) {
-                    console.error("Error adding task:", error);
-                }
-            }
-        }
-
-        // Function to delete a task
-        async function deleteTask(taskId) {
-            try {
-                const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
-                    method: "DELETE",
-                    headers: {
-                        "Authorization": `Bearer ${userToken}`
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error("Failed to delete task");
-                }
-                fetchTasks();
-            } catch (error) {
-                console.error("Error deleting task:", error);
-            }
-        }
         
-        // Function to update a task
-        async function updateTask(taskId, newText) {
+        function getStatusClass(status) {
+            switch (status) {
+                case "active":
+                    return "active-pulse";
+                case "in-progress":
+                    return "in-progress-pulse";
+                case "approved":
+                    return "approved-pulse";
+                case "rejected":
+                    return "rejected-pulse";
+                default:
+                    return "";
+            }
+        }
+
+        function getTaskActions(task) {
+            switch (task.status) {
+                case "active":
+                    return `
+                        <button class="btn-in-progress" data-id="${task.id}" data-action="in-progress">Send to In Progress</button>
+                        <button class="btn-reject" data-id="${task.id}" data-action="rejected">Reject</button>
+                    `;
+                case "in-progress":
+                    return `
+                        <button class="btn-approve" data-id="${task.id}" data-action="approved">Approve</button>
+                        <button class="btn-reject" data-id="${task.id}" data-action="rejected">Reject</button>
+                    `;
+                case "approved":
+                    return `
+                        <button class="btn-delete" data-id="${task.id}" data-action="delete">Delete</button>
+                    `;
+                case "rejected":
+                    return `
+                        <button class="btn-reactivate" data-id="${task.id}" data-action="active">Re-add to Active</button>
+                        <button class="btn-delete" data-id="${task.id}" data-action="delete">Delete</button>
+                    `;
+                default:
+                    return "";
+            }
+        }
+
+        async function handleTaskAction(event) {
+            const taskId = event.target.dataset.id;
+            const action = event.target.dataset.action;
+            let success = false;
+            
+            if (action === "delete") {
+                success = await deleteTask(taskId);
+            } else {
+                success = await updateTaskStatus(taskId, action);
+            }
+
+            if (success) {
+                fetchTasks();
+            }
+        }
+
+        async function updateTaskStatus(taskId, status) {
+            if (!userToken) return;
             try {
                 const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
                     method: "PUT",
@@ -284,22 +421,78 @@
                         "Content-Type": "application/json",
                         "Authorization": `Bearer ${userToken}`
                     },
-                    body: JSON.stringify({
-                        id: taskId,
-                        title: newText,
-                        is_completed: false,
-                    }),
+                    body: JSON.stringify({ status: status }),
                 });
                 if (!response.ok) {
-                    throw new Error("Failed to update task");
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || "Failed to update task status");
                 }
-                fetchTasks();
+                return true;
             } catch (error) {
-                console.error("Error updating task:", error);
+                console.error("Error updating task status:", error);
+                alert("Failed to update task status.");
+                return false;
             }
         }
 
-        // Function to handle user signup
+        async function addTask() {
+            if (!userToken) return;
+            const taskText = taskInput.value.trim();
+            if (taskText === "") return;
+
+            const statusIndicator = document.getElementById("add-task-status");
+            statusIndicator.style.display = "inline-block";
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${userToken}`
+                    },
+                    body: JSON.stringify({ title: taskText }),
+                });
+
+                if (response.ok) {
+                    statusIndicator.classList.remove('error-indicator');
+                    statusIndicator.classList.add('success-indicator');
+                    fetchTasks();
+                    taskInput.value = "";
+                } else {
+                    statusIndicator.classList.remove('success-indicator');
+                    statusIndicator.classList.add('error-indicator');
+                    const errorData = await response.json();
+                    console.error("Error adding task:", errorData.detail || "Failed to add task");
+                }
+            } catch (error) {
+                statusIndicator.classList.remove('success-indicator');
+                statusIndicator.classList.add('error-indicator');
+                console.error("Error adding task:", error);
+            } finally {
+                setTimeout(() => {
+                    statusIndicator.style.display = "none";
+                }, 1500);
+            }
+        }
+
+        async function deleteTask(taskId) {
+            if (!userToken) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+                    method: "DELETE",
+                    headers: { "Authorization": `Bearer ${userToken}` }
+                });
+                if (!response.ok) {
+                    throw new Error("Failed to delete task");
+                }
+                return true;
+            } catch (error) {
+                console.error("Error deleting task:", error);
+                alert("Failed to delete task.");
+                return false;
+            }
+        }
+        
         async function signup(username, password) {
             try {
                 const response = await fetch(`${API_BASE_URL}/signup`, {
@@ -318,7 +511,6 @@
             }
         }
 
-        // Function to handle user login
         async function login(username, password) {
             const formData = new URLSearchParams();
             formData.append("grant_type", "password");
@@ -345,15 +537,16 @@
             }
         }
         
-        // Function to handle user logout
         function logout() {
             localStorage.removeItem("token");
             userToken = null;
             checkAuth();
-            taskList.innerHTML = "";
+            activeTasksList.innerHTML = "";
+            inProgressTasksList.innerHTML = "";
+            approvedTasksList.innerHTML = "";
+            rejectedTasksList.innerHTML = "";
         }
 
-        // Event listeners for forms and buttons
         signupForm.addEventListener("submit", (e) => {
             e.preventDefault();
             const username = document.getElementById("signup-username").value;
@@ -370,8 +563,6 @@
 
         logoutBtn.addEventListener("click", logout);
         addTaskBtn.addEventListener("click", addTask);
-
-        // Initial check for authentication status
         checkAuth();
     </script>
 </body>
